@@ -1039,7 +1039,7 @@ namespace PluginLoader
             }
         }
 
-        public static bool OnPlayerGetItem(Player player, WorldItem newItem, GetItemSettings settings, out Item resultItem)
+        public static bool OnPlayerGetItem(Player player, Item newItem, GetItemSettings settings, out Item resultItem)
         {
             Item captured = null;
 

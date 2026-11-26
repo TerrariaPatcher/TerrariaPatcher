@@ -452,7 +452,9 @@ namespace TerrariaPatcher
         {
             var player = IL.GetTypeDefinition(_mainModule, "Player");
             var skipManaUse = IL.GetMethodDefinition(player, "ItemCheck_PayMana_ShouldSkipManaUse");
-            var checkMana = IL.GetMethodDefinition(player, "CheckMana", 3);
+            var checkMana = IL.GetMethodDefinition(player, "CheckMana");
+            var slowMagicUse = IL.GetFieldDefinition(player, "slowMagicUse", false);
+            if (skipManaUse == null || checkMana == null) return;
 
             skipManaUse.Body.ExceptionHandlers.Clear();
             skipManaUse.Body.Instructions.Clear();
@@ -460,9 +462,17 @@ namespace TerrariaPatcher
             skipManaUse.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
 
             // Some behaviors (Forbidden Storm, Nimbus Rod, Medusa Head, Life Drain, the Forbidden armor set bonus) bypass the
-            // ItemCheck_PayMana path and call CheckMana directly.
+            // ItemCheck_PayMana path and call CheckMana directly. CheckMana also clears slowMagicUse, the slowdown applied
+            // when running out of mana, so that is kept.
             checkMana.Body.ExceptionHandlers.Clear();
+            checkMana.Body.Variables.Clear();
             checkMana.Body.Instructions.Clear();
+            if (slowMagicUse != null)
+            {
+                checkMana.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+                checkMana.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_0));
+                checkMana.Body.Instructions.Add(Instruction.Create(OpCodes.Stfld, slowMagicUse));
+            }
             checkMana.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_1));
             checkMana.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
         }
@@ -707,7 +717,10 @@ namespace TerrariaPatcher
 	                                       && m.Parameters[0].ParameterType.FullName == "System.Int32"
 	                                       && m.Parameters[1].ParameterType.FullName == "System.Int32"
 	            select m).FirstOrDefault();
-            var getItem = IL.GetMethodDefinition(player, "GetItem");
+            var getItem = player.Methods.FirstOrDefault(m =>
+                m.Name == "GetItem" && m.Parameters.Count == 2 && m.Parameters[0].ParameterType.FullName == "Terraria.Item");
+            if (getItem == null)
+                Program.ShowErrorMessage("Failed to locate Terraria.Player.GetItem(Item, GetItemSettings) method!");
             var setupShop = IL.GetMethodDefinition(chest, "SetupShop");
             var quickBuff = IL.GetMethodDefinition(player, "QuickBuff");
             var npcLoot = IL.GetMethodDefinition(npc, "NPCLoot");
